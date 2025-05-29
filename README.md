@@ -47,6 +47,15 @@ localStorage.setItem('game-center-demo-mode', 'true');
 
 Oyun, ana Game Center uygulaması içinde iframe olarak yüklenir:
 
+```jsx
+<iframe 
+  src="http://localhost:3001?lobbyId={lobbyId}" 
+  title="Mayın Tarlası" 
+  width="100%" 
+  height="600px" 
+  style={{ border: 'none' }}
+/>
+```
 
 ## 📁 Proje Yapısı
 
@@ -68,3 +77,6 @@ Yeni özellikler eklerken veya hataları düzeltirken lütfen mevcut kod stiline
 - Tip güvenliği için prop-types kullanın
 - Temiz ve yorumlu kod yazın
 
+## 📝 Lisans
+
+Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır. 

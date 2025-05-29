@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import soundManager from '../utils/SoundManager';
 
 /**
  * Mayın Tarlası oyun mantığı için custom hook
@@ -42,6 +43,9 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
     setIsFirstClick(true);
     setTime(0);
     setIsGameStarted(false);
+    
+    // Yeni oyun başlama sesi
+    soundManager.playStart();
   }, [width, height]);
 
   // Mayınları yerleştir (ilk tıklanan hücreye mayın koymaz)
@@ -113,6 +117,9 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
         
         // Eğer çevrede mayın yoksa komşu hücreleri de aç
         if (newBoard[r][c].adjacentMines === 0) {
+          // Çoklu hücre açma sesi
+          soundManager.playOpen();
+          
           for (let nr = Math.max(0, r - 1); nr <= Math.min(height - 1, r + 1); nr++) {
             for (let nc = Math.max(0, c - 1); nc <= Math.min(width - 1, c + 1); nc++) {
               if (nr !== r || nc !== c) {
@@ -120,11 +127,17 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
               }
             }
           }
+        } else {
+          // Tek hücre açma sesi
+          soundManager.playClick();
         }
       };
       
       // Mayına tıklandıysa oyunu kaybettir
       if (newBoard[row][col].isMine) {
+        // Mayın patlama sesi
+        soundManager.playExplosion();
+        
         // Tüm mayınları göster
         for (let r = 0; r < height; r++) {
           for (let c = 0; c < width; c++) {
@@ -135,6 +148,11 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
         }
         setGameStatus(-1);
         onGameEnd({ status: 'lost', time });
+        
+        // Kayıp sesi - Patlama sesinin üzerine bindirme için kısa gecikme
+        setTimeout(() => {
+          soundManager.playLose();
+        }, 500);
       } else {
         revealCell(row, col);
         
@@ -153,6 +171,11 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
           }
           setGameStatus(1);
           onGameEnd({ status: 'won', time });
+          
+          // Kazanma sesi - Kısa gecikme ile çal
+          setTimeout(() => {
+            soundManager.playWin();
+          }, 300);
         }
       }
       
@@ -175,6 +198,9 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
       } else {
         setFlagCount(prev => prev - 1);
       }
+      
+      // Bayrak sesi
+      soundManager.playFlag();
       
       return newBoard;
     });
@@ -199,7 +225,7 @@ const useMinesweeper = (width = 9, height = 9, mines = 10, onGameEnd = () => {})
     };
   }, [isGameStarted, gameStatus]);
 
-  // Oyun tahtasını başlangıçta oluştur
+  // İlk yüklemede tahtayı oluştur
   useEffect(() => {
     initializeBoard();
   }, [initializeBoard]);
