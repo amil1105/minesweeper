@@ -120,7 +120,7 @@ const GameBoard = ({
 
   return (
     <Container maxWidth="lg" sx={{ py: 2 }}>
-      <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+      <Box sx={{ maxWidth: board[0]?.length === 30 && board.length === 16 ? 1300 : 900, mx: 'auto' }}>
         {/* Oyun Başlığı */}
         <Box sx={{ 
           textAlign: 'center', 
@@ -275,7 +275,9 @@ const GameBoard = ({
             bgcolor: alpha(theme.palette.background.paper, 0.7),
             borderRadius: 2,
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            maxWidth: board[0]?.length === 30 && board.length === 16 ? 1240 : 940,
+            mx: 'auto'
           }}
         >
           <Box sx={{ 

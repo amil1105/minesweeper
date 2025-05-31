@@ -18,7 +18,6 @@
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "socket.io-client": "^4.7.2",
-    "@game-center/common": "^0.1.0",
     "axios": "^1.6.2",
     "react-router-dom": "^6.21.1"
   },
