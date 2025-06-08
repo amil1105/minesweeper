@@ -115,6 +115,9 @@ export default defineConfig({
     assetsDir: 'assets',
     minify: 'terser',
     sourcemap: true,
+    // Tüm uyarıları kapatma
+    chunkSizeWarningLimit: 2000,
+    reportCompressedSize: false,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html')

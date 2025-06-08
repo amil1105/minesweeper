@@ -1,82 +1,82 @@
-# 💣 Mayın Tarlası (Minesweeper)
+# 💣 Minesweeper
 
-Bu proje, Game Center platformu için geliştirilmiş olan Mayın Tarlası oyunudur. Hem tek başına çalışabilir hem de ana Game Center uygulaması içinde iframe olarak yüklenebilir.
+This project is a Minesweeper game developed for the Game Center platform. It can work both as a standalone application and be loaded as an iframe within the main Game Center application.
 
-## 🚀 Özellikler
+## 🚀 Features
 
-- Modern, duyarlı (responsive) arayüz tasarımı
-- Tek oyunculu ve çok oyunculu modlar
-- Backend olmadığında otomatik demo modu
-- Özelleştirilebilir oyun alanı boyutu ve mayın sayısı
-- Bayrak işaretleme ve sayaç
-- Zaman tutucu
+- Modern, responsive interface design
+- Single player and multiplayer modes
+- Automatic demo mode when backend is unavailable
+- Customizable game field size and mine count
+- Flag marking and counter
+- Timer functionality
 
-## 🛠️ Teknolojiler
+## 🛠️ Technologies
 
 - React 18
 - Vite
 - Material UI
-- Socket.IO (çok oyunculu mod için)
+- Socket.IO (for multiplayer mode)
 
-## 💻 Kurulum
+## 💻 Installation
 
-Projeyi yerel ortamınızda çalıştırmak için:
+To run the project in your local environment:
 
 ```bash
-# Gerekli bağımlılıkları yükleyin
+# Install dependencies
 npm install
 
-# Geliştirme sunucusunu başlatın
+# Start development server
 npm run dev
 ```
 
-## 🔌 Demo Modu
+## 🔌 Demo Mode
 
-Uygulama, backend API'ye bağlanamadığında otomatik olarak demo moduna geçer. Bu mod şunları sağlar:
+The application automatically switches to demo mode when unable to connect to the backend API. This mode provides:
 
-- Simüle edilmiş Socket.IO bağlantısı
-- Yerel oyun durumu yönetimi
-- Tek oyuncu deneyimi
+- Simulated Socket.IO connection
+- Local game state management
+- Single player experience
 
-Demo modunu manuel olarak etkinleştirmek için:
+To manually enable demo mode:
 ```javascript
 localStorage.setItem('game-center-demo-mode', 'true');
 ```
 
-## 🔄 Ana Uygulama Entegrasyonu
+## 🔄 Main Application Integration
 
-Oyun, ana Game Center uygulaması içinde iframe olarak yüklenir:
+The game can be loaded as an iframe within the main Game Center application:
 
 ```jsx
 <iframe 
   src="http://localhost:3001?lobbyId={lobbyId}" 
-  title="Mayın Tarlası" 
+  title="Minesweeper" 
   width="100%" 
   height="600px" 
   style={{ border: 'none' }}
 />
 ```
 
-## 📁 Proje Yapısı
+## 📁 Project Structure
 
 ```
 /src
-  /components       # UI bileşenleri
-  /hooks            # Özel React hooks
-  /pages            # Sayfa bileşenleri
-  /utils            # Yardımcı işlevler ve API
-  App.jsx           # Ana uygulama bileşeni
-  main.jsx          # Giriş noktası
+  /components       # UI components
+  /hooks            # Custom React hooks
+  /pages            # Page components
+  /utils            # Helper functions and API
+  App.jsx           # Main application component
+  main.jsx          # Entry point
 ```
 
-## 🧩 Geliştirme
+## 🧩 Development
 
-Yeni özellikler eklerken veya hataları düzeltirken lütfen mevcut kod stiline uyun:
-- Functional component ve hook'ları kullanın
-- Material UI bileşenlerini tercih edin
-- Tip güvenliği için prop-types kullanın
-- Temiz ve yorumlu kod yazın
+When adding new features or fixing bugs, please adhere to the existing code style:
+- Use functional components and hooks
+- Prefer Material UI components
+- Use prop-types for type safety
+- Write clean and commented code
 
-## 📝 Lisans
+## 📝 License
 
-Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır. 
+This project is licensed under the [MIT License](LICENSE). 

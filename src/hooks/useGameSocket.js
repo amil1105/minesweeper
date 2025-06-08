@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { isDemoMode, setDemoMode } from '../utils/api';
 
 // Sabit socket URL
 const SOCKET_URL = 'http://localhost:3001';
@@ -28,9 +27,8 @@ const SOCKET_EVENTS = {
  * WebSocket bağlantısını yönetmek için custom hook
  * @param {string} lobbyId - Lobi ID'si
  * @param {string} userId - Kullanıcı ID'si
- * @param {boolean} forceDemoMode - Demo mod aktif mi
  */
-const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
+const useGameSocket = (lobbyId, userId) => {
   // State
   const [isConnected, setIsConnected] = useState(false);
   const [players, setPlayers] = useState([]);
@@ -41,36 +39,9 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
 
   // Socket referansı
   const socketRef = useRef(null);
-  
-  // Demo modu kontrolü
-  const demoMode = forceDemoMode || isDemoMode();
 
   // Socket bağlantısı kur
   useEffect(() => {
-    // Demo modunda ise socket bağlantısı kurmadan sahte veriler üret
-    if (demoMode) {
-      console.log('Demo modunda socket bağlantısı simülasyonu');
-      
-      // Demo oyuncuları
-      const demoPlayers = [
-        {
-          id: userId || `demo-${Date.now()}`,
-          username: localStorage.getItem('mines_playerName') || 'Sen',
-          status: 'playing',
-          score: 0
-        }
-      ];
-      
-      setPlayers(demoPlayers);
-      setIsConnected(true);
-      setError(null);
-      
-      return () => {
-        console.log('Demo socket bağlantısı kapatılıyor (simülasyon)');
-      };
-    }
-    
-    // Demo modunda değilsek gerçek socket bağlantısı kur
     if (!lobbyId || !userId) {
       setError('Lobi ID veya kullanıcı ID eksik.');
       return;
@@ -86,7 +57,7 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
         socketRef.current = null;
       }
       
-      // Socket.IO bağlantısı kur - maksimum uyumluluk için ayarlar
+      // Socket.IO bağlantısı kur - sadece polling kullan (WebSocket devre dışı)
       socketRef.current = io(SOCKET_URL, {
         path: '/socket.io',
         query: {
@@ -94,12 +65,12 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
           userId,
           game: 'minesweeper'
         },
-        transports: ['polling', 'websocket'], // Önce polling dene, sonra websocket
+        transports: ['polling'], // Sadece polling kullan, WebSocket devre dışı
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        timeout: 20000, // Daha uzun timeout süresi
-        withCredentials: false, // CORS sorunlarını önlemek için
+        timeout: 10000,
+        withCredentials: false,
         forceNew: true,
         autoConnect: true
       });
@@ -122,7 +93,20 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
 
       socketRef.current.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {
         console.error('Socket bağlantı hatası:', err);
-        setError(`Sunucu bağlantısı kurulamadı: ${err.message}`);
+        
+        // Hata mesajlarından çevrimdışı mod referanslarını kaldır
+        let errorMsg = 'Bağlantı hatası';
+        if (err && err.message) {
+          if (err.message.includes('xhr poll error') || err.message.includes('500')) {
+            errorMsg = 'Sunucu hatası';
+          } else if (err.message.includes('websocket error')) {
+            errorMsg = 'Bağlantı hatası';
+          } else {
+            errorMsg = 'Bağlantı hatası';
+          }
+        }
+        
+        setError(errorMsg);
         setIsConnected(false);
         
         // Yeniden bağlanma denemesi sayısını artır
@@ -130,9 +114,11 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
         
         // Çok fazla deneme olduysa
         if (reconnectAttempts >= 2) {
-          console.warn('Çok fazla bağlantı denemesi, demo moduna geçiş seçeneği sunuluyor');
-          setError('Sunucuya bağlanılamadı. Oyunu demo modunda oynamak için sayfayı yenileyin.');
-          socketRef.current.close();
+          console.warn('Çok fazla bağlantı denemesi oldu');
+          setError('Bağlantı hatası');
+          if (socketRef.current) {
+            socketRef.current.close();
+          }
         }
       });
 
@@ -140,9 +126,9 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
         console.log('Socket bağlantısı kesildi:', reason);
         setIsConnected(false);
         if (reason === 'io server disconnect') {
-          setError('Sunucu tarafından bağlantı kesildi.');
+          setError('Bağlantı kesildi');
         } else {
-          setError('Bağlantı kesildi. Yeniden bağlanılıyor...');
+          setError('Bağlantı kesildi');
         }
       });
 
@@ -202,20 +188,11 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
       console.error('Socket bağlantısı oluşturulurken hata:', err);
       setError(`Socket bağlantısı oluşturulurken hata: ${err.message}`);
       setIsConnected(false);
-      
-      // Bağlantı hatası durumunda demo moda geç
-      console.warn('Socket bağlantısı oluşturulamadı, demo moda geçiliyor...');
-      setDemoMode(true);
     }
-  }, [lobbyId, userId, demoMode, reconnectAttempts]);
+  }, [lobbyId, userId, reconnectAttempts]);
 
   // Hücre açma işlemi
   const sendOpenCell = (row, col) => {
-    if (demoMode) {
-      console.log('Demo modunda hücre açma:', row, col);
-      return;
-    }
-    
     if (socketRef.current && isConnected) {
       console.log('Hücre açma gönderiliyor:', { row, col });
       socketRef.current.emit(SOCKET_EVENTS.OPEN_CELL, { lobbyId, row, col });
@@ -226,11 +203,6 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
 
   // Bayrak işlemi
   const sendToggleFlag = (row, col, isFlagged) => {
-    if (demoMode) {
-      console.log('Demo modunda bayrak değiştirme:', row, col, isFlagged);
-      return;
-    }
-    
     if (socketRef.current && isConnected) {
       console.log('Bayrak değiştirme gönderiliyor:', { row, col, isFlagged });
       socketRef.current.emit(SOCKET_EVENTS.TOGGLE_FLAG, { lobbyId, row, col, isFlagged });
@@ -241,54 +213,51 @@ const useGameSocket = (lobbyId, userId, forceDemoMode = false) => {
 
   // Oyun sonucu
   const sendGameResult = (result) => {
-    if (demoMode) {
-      console.log('Demo modunda oyun sonucu:', result);
-      return;
-    }
-    
     if (socketRef.current && isConnected) {
       console.log('Oyun sonucu gönderiliyor:', result);
-      socketRef.current.emit(SOCKET_EVENTS.GAME_RESULT, { lobbyId, ...result });
+      socketRef.current.emit(SOCKET_EVENTS.GAME_RESULT, {
+        lobbyId,
+        userId,
+        gameType: 'minesweeper',
+        result
+      });
     } else {
-      console.warn('Socket bağlantısı olmadan oyun sonucu isteği yapılamaz');
+      console.warn('Socket bağlantısı olmadan oyun sonucu gönderilemiyor');
     }
   };
 
   // Mesaj gönderme
   const sendMessage = (text) => {
-    if (demoMode) {
-      console.log('Demo modunda mesaj:', text);
-      
-      // Demo modunda yerel olarak mesajı ekle
-      const newMessage = {
-        id: Date.now(),
+    if (socketRef.current && isConnected) {
+      const message = {
+        id: `msg-${Date.now()}`,
+        lobbyId,
         userId,
-        username: localStorage.getItem('mines_playerName') || 'Sen',
+        username: localStorage.getItem('mines_playerName') || 'Oyuncu',
         text,
         timestamp: new Date().toISOString()
       };
       
-      setMessages((prev) => [...prev, newMessage]);
-      return;
-    }
-    
-    if (socketRef.current && isConnected) {
-      console.log('Mesaj gönderiliyor:', text);
-      socketRef.current.emit(SOCKET_EVENTS.MESSAGE, { lobbyId, text });
+      console.log('Mesaj gönderiliyor:', message);
+      socketRef.current.emit(SOCKET_EVENTS.MESSAGE, message);
+      
+      // Mesajı lokalde göster
+      setMessages((prev) => [...prev, message]);
     } else {
-      console.warn('Socket bağlantısı olmadan mesaj isteği yapılamaz');
+      console.warn('Socket bağlantısı olmadan mesaj gönderilemiyor');
     }
   };
-  
-  // Bağlantı durumunu manuel yenileme
+
+  // Yeniden bağlan
   const reconnect = () => {
+    console.log('Yeniden bağlanma başlatılıyor...');
+    
     if (socketRef.current) {
-      console.log('Socket bağlantısı yeniden kurulmaya çalışılıyor...');
       socketRef.current.connect();
-    } else {
-      // Socket yoksa yeni bağlantı kurulması için state'i güncelle
-      setReconnectAttempts(0);
+      return true;
     }
+    
+    return false;
   };
 
   return {

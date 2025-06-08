@@ -15,8 +15,8 @@ const getApiUrl = () => {
     }
   }
   
-  // Varsayılan olarak demo mode kullan
-  console.log('API bağlantısı bulunamadı, demo moda geçiliyor...');
+  // Varsayılan API URL
+  console.log('API bağlantısı için varsayılan URL kullanılıyor');
   isInDemoMode = true;
   return 'http://localhost:3001/api';
 };
@@ -71,61 +71,65 @@ api.interceptors.response.use(
   }
 );
 
-// Demo mod durumu
-let isInDemoMode = false; // Başlangıçta demo mod kapalı
+// Çevrimdışı mod durumu
+let isInDemoMode = false;
 
-// Demo modu callback'i
+// Çevrimdışı mod callback'i
 let demoModeCallback = null;
 
-// Demo modu callback'ini ayarla
+// Çevrimdışı mod callback'ini ayarla
 export const setDemoModeCallback = (callback) => {
   demoModeCallback = callback;
 };
 
-// Demo modu kontrolü (gerçek API olmadığında veya istenirse)
+// Çevrimdışı mod kontrolü (her zaman false döndürür)
 export const isDemoMode = () => {
-  // Doğrudan LocalStorage'dan okunan değer varsa onu kullan
-  const storedValue = localStorage.getItem('minesweeper-demo-mode');
-  if (storedValue === 'true' || storedValue === 'false') {
-    return storedValue === 'true';
-  }
-  
-  // Varsayılan olarak demo modu kapalı
+  // Her zaman false döndür
   return false;
 };
 
-// Demo modu manuel olarak ayarla
+// Çevrimdışı modu manuel olarak ayarla
 export const setDemoMode = (isDemoMode) => {
-  isInDemoMode = isDemoMode;
-  localStorage.setItem('minesweeper-demo-mode', isDemoMode.toString());
+  // Varsayılan değeri ayarla
+  isInDemoMode = false;
+  localStorage.setItem('minesweeper-demo-mode', 'false');
   
   // Callback varsa çağır
   if (demoModeCallback) {
-    demoModeCallback(isDemoMode);
+    demoModeCallback(false);
   }
-  
-  console.log(`Demo mod ${isDemoMode ? 'etkinleştirildi' : 'devre dışı bırakıldı'}`);
 };
 
 // API bağlantısını kontrol et
 export const checkApiConnection = async () => {
   try {
     // Gerçek API isteği
-    const response = await api.get('/health', { timeout: 5000 });
+    const response = await api.get('/health', { timeout: 3000 });
     
-    // Bağlantı başarılıysa demo modu kapat
+    // Bağlantı başarılıysa
     if (response.status === 200) {
       isInDemoMode = false;
       return true;
     } else {
-      // Başarısız yanıt durumunda demo moda geç
-      console.warn('API sağlık kontrolü başarısız, demo moda geçiliyor...');
+      // Başarısız yanıt durumunda
+      console.warn('API sağlık kontrolü başarısız');
       isInDemoMode = true;
       return false;
     }
   } catch (error) {
-    console.warn('API bağlantı hatası:', error.message);
-    // Hata durumunda demo moda geç
+    // Hata detaylarını yazdır
+    if (error.response) {
+      // Sunucu yanıt verdi ancak 2xx kapsamı dışında
+      console.warn('API hata yanıtı:', error.response.status);
+    } else if (error.request) {
+      // İstek yapıldı ancak yanıt alınamadı
+      console.warn('API yanıt vermedi');
+    } else {
+      // İstek yapılamadı
+      console.warn('API isteği yapılamadı');
+    }
+    
+    // Hata durumunda
     isInDemoMode = true;
     return false;
   }
@@ -135,9 +139,9 @@ export const checkApiConnection = async () => {
 (async () => {
   try {
     const isConnected = await checkApiConnection();
-    console.log(`API bağlantı durumu: ${isConnected ? 'Bağlı' : 'Bağlantı yok, demo mod aktif'}`);
+    console.log(`API bağlantı durumu: ${isConnected ? 'Bağlı' : 'Bağlantı yok'}`);
   } catch (err) {
-    console.warn('API bağlantı kontrolü sırasında hata oluştu, demo mod aktif.');
+    console.warn('API bağlantı kontrolü sırasında hata oluştu');
     isInDemoMode = true;
   }
 })();
@@ -146,20 +150,20 @@ export const checkApiConnection = async () => {
 export const getLobbyData = async (lobbyId) => {
   try {
     // Bağlantıyı kontrol et
-    await checkApiConnection();
+    const isConnected = await checkApiConnection();
     
-    // Demo modunda ise sahte veri döndür
-    if (isDemoMode()) {
-      console.log('Demo modunda sahte lobi verileri döndürülüyor');
+    // Çevrimdışı modunda ise veya bağlantı yoksa yerel veri döndür
+    if (!isConnected || isDemoMode()) {
+      console.log('Yerel lobi verileri kullanılıyor');
       
-      // Sahte lobi verisi
+      // Lobi verisi
       return {
         _id: lobbyId,
-        name: 'Demo Mayın Tarlası Lobisi',
+        name: 'Mayın Tarlası Lobisi',
         game: 'mines',
         maxPlayers: 4,
         players: [
-          { id: localStorage.getItem('mines_playerId') || 'demo-player', name: localStorage.getItem('mines_playerName') || 'Demo Oyuncu', isReady: true }
+          { id: localStorage.getItem('mines_playerId') || 'local-player', name: localStorage.getItem('mines_playerName') || 'Oyuncu', isReady: true }
         ],
         settings: {
           minesweeper: {
@@ -173,22 +177,52 @@ export const getLobbyData = async (lobbyId) => {
     }
     
     // Gerçek API isteği
-    const response = await api.get(`/lobbies/${lobbyId}`);
-    return response.data;
+    try {
+      console.log(`Lobi verileri alınıyor: /lobbies/${lobbyId}`);
+      const response = await api.get(`/lobbies/${lobbyId}`, { timeout: 5000 });
+      console.log('Lobi verileri başarıyla alındı');
+      return response.data;
+    } catch (apiError) {
+      console.error('API isteği sırasında hata');
+      
+      // Belirli HTTP hata kodlarını kontrol et
+      if (apiError.response) {
+        // Sunucu yanıt verdi ancak 2xx kapsamı dışında bir durum kodu
+        console.error('HTTP Hata Kodu:', apiError.response.status);
+        
+        // 404 Not Found - Lobi bulunamadı
+        if (apiError.response.status === 404) {
+          throw new Error('Belirtilen lobi bulunamadı');
+        }
+        
+        // 500 Internal Server Error - Sunucu hatası
+        if (apiError.response.status === 500) {
+          throw new Error('Sunucu hatası');
+        }
+      }
+      
+      // Ağ hatası veya timeout
+      if (apiError.code === 'ECONNABORTED' || !apiError.response) {
+        throw new Error('Sunucu bağlantısı kurulamadı');
+      }
+      
+      // Genel hata
+      throw new Error('Lobi verisi alınamadı');
+    }
   } catch (error) {
     console.error('Lobi verisi alınamadı:', error);
     
-    // Hata durumunda demo mod
+    // Hata durumunda
     isInDemoMode = true;
     
-    // Sahte lobi verisi
+    // Lobi verisi
     return {
       _id: lobbyId,
-      name: 'Demo Mayın Tarlası Lobisi',
+      name: 'Mayın Tarlası Lobisi',
       game: 'mines',
       maxPlayers: 4,
       players: [
-        { id: localStorage.getItem('mines_playerId') || 'demo-player', name: localStorage.getItem('mines_playerName') || 'Demo Oyuncu', isReady: true }
+        { id: localStorage.getItem('mines_playerId') || 'local-player', name: localStorage.getItem('mines_playerName') || 'Oyuncu', isReady: true }
       ],
       settings: {
         minesweeper: {
@@ -205,9 +239,9 @@ export const getLobbyData = async (lobbyId) => {
 // Oyun durumunu güncelle
 export const updateGameState = async (lobbyId, gameState) => {
   try {
-    // Demo modunda işlem yapma
+    // Çevrimdışı modunda işlem yapma
     if (isDemoMode()) {
-      console.log('Demo modunda oyun durumu güncellenmesi simüle ediliyor', gameState);
+      console.log('Çevrimdışı modunda oyun durumu güncellenmesi simüle ediliyor', gameState);
       return { success: true };
     }
     
@@ -224,9 +258,9 @@ export const updateGameState = async (lobbyId, gameState) => {
 // Oyun sonucunu kaydet
 export const saveGameResult = async (lobbyId, result) => {
   try {
-    // Demo modunda işlem yapma
+    // Çevrimdışı modunda işlem yapma
     if (isDemoMode()) {
-      console.log('Demo modunda oyun sonucu kaydedilmesi simüle ediliyor', result);
+      console.log('Çevrimdışı modunda oyun sonucu kaydedilmesi simüle ediliyor', result);
       return { success: true };
     }
     

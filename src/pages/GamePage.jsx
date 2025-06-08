@@ -1,31 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Container, Paper, Alert, Button, TextField, CircularProgress, Stack, Snackbar } from '@mui/material';
+import { Box, Typography, Container, Paper, Alert, Button, CircularProgress, Stack, Snackbar } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import GameBoard from '../components/GameBoard';
 import useMinesweeper from '../hooks/useMinesweeper';
 import useGameSocket from '../hooks/useGameSocket';
-import { getLobbyData, isDemoMode, setDemoMode, checkApiConnection } from '../utils/api';
+import { getLobbyData, checkApiConnection } from '../utils/api';
 
 // Yardımcı fonksiyon: UUID olmadan benzersiz ID oluştur
 const generateUniqueId = (prefix = '') => {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`;
 };
 
-const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
+const GamePage = ({ lobbyId: propLobbyId }) => {
   // State
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lobbyData, setLobbyData] = useState(null);
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('');
-  const [demoMode, setDemoModeState] = useState(forceDemoMode || isDemoMode());
   const [settings, setSettings] = useState({
     width: 9,
     height: 9,
     mines: 10
   });
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  const [formError, setFormError] = useState('');
   const [notification, setNotification] = useState({ show: false, message: '', severity: 'info' });
   const [apiChecked, setApiChecked] = useState(false);
 
@@ -43,54 +40,25 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
   // API bağlantısını kontrol et
   useEffect(() => {
     const checkConnection = async () => {
-      if (forceDemoMode) {
-        setDemoMode(true);
-        setDemoModeState(true);
-        setApiChecked(true);
-        return;
-      }
-      
       try {
         const isConnected = await checkApiConnection();
         console.log('API bağlantı durumu:', isConnected);
-        
-        if (!isConnected) {
-          // Bağlantı yoksa demo moda geç
-          setDemoMode(true);
-          setDemoModeState(true);
-          setNotification({
-            show: true,
-            message: 'Sunucu bağlantısı kurulamadı. Demo modunda devam ediliyor.',
-            severity: 'warning'
-          });
-        } else {
-          setDemoMode(false);
-          setDemoModeState(false);
-        }
       } catch (err) {
         console.error('API bağlantı kontrolü sırasında hata:', err);
-        setDemoMode(true);
-        setDemoModeState(true);
       } finally {
         setApiChecked(true);
       }
     };
     
     checkConnection();
-  }, [forceDemoMode]);
+  }, []);
   
-  // Demo mod değiştiğinde log
-  useEffect(() => {
-    console.log("Demo mod durumu:", demoMode);
-  }, [demoMode]);
-  
-  console.log("GamePage: Kullanılan Lobi ID:", lobbyIdToUse, "Demo mod:", demoMode);
+  console.log("GamePage: Kullanılan Lobi ID:", lobbyIdToUse);
 
   // Kullanıcı kimliğini başlangıçta ayarla
   useEffect(() => {
     // Mevcut kullanıcı kimliğini kontrol et
     let currentUserId = localStorage.getItem('mines_playerId');
-    let currentUsername = localStorage.getItem('mines_playerName');
     
     // Kullanıcı kimliği yoksa oluştur
     if (!currentUserId) {
@@ -98,13 +66,14 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
       localStorage.setItem('mines_playerId', currentUserId);
     }
     
-    // Kullanıcı adı yoksa form göster
+    // Kullanıcı adını otomatik ata, form gösterme
+    let currentUsername = localStorage.getItem('mines_playerName');
     if (!currentUsername) {
-      setShowLoginForm(true);
-    } else {
-      setUsername(currentUsername);
+      currentUsername = 'Oyuncu';
+      localStorage.setItem('mines_playerName', currentUsername);
     }
     
+    setUsername(currentUsername);
     setUserId(currentUserId);
   }, []);
 
@@ -137,66 +106,32 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
         const data = await getLobbyData(lobbyIdToUse);
         setLobbyData(data);
         
-        // Demo moduna geçiş kontrolü
-        setDemoModeState(isDemoMode());
-        
         // Lobi ayarlarını kullan
         if (data && data.settings && data.settings.minesweeper) {
           setSettings(data.settings.minesweeper);
         }
         
-        if (demoMode) {
-          setNotification({
-            show: true,
-            message: 'Demo modunda oyun başlatıldı. Çoklu oyuncu özellikleri devre dışı.',
-            severity: 'info'
-          });
-        } else {
-          setNotification({
-            show: true,
-            message: 'Oyun lobisine bağlanıldı!',
-            severity: 'success'
-          });
-        }
+        // Sadece lobi bağlantısı mesajı göster, çevrimdışı mod bildirimi gösterme
+        setNotification({
+          show: true,
+          message: 'Oyun lobisine bağlanıldı!',
+          severity: 'success'
+        });
       } catch (err) {
         console.error('Lobi verisi yüklenirken hata:', err);
-        setError('Lobi verisi yüklenemedi. Yeni bir oyun başlatılıyor.');
-        
         // Hata durumunda varsayılan ayarları kullan
         setSettings({
           width: 9,
           height: 9,
           mines: 10
         });
-        
-        // Demo moda geç
-        setDemoMode(true);
-        setDemoModeState(true);
       } finally {
         setLoading(false);
       }
     };
     
     fetchLobbyData();
-  }, [lobbyIdToUse, navigate, userId, apiChecked, demoMode]);
-
-  // Kullanıcı adı formu işleme
-  const handleUsernameSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!username.trim()) {
-      setFormError('Lütfen bir kullanıcı adı girin');
-      return;
-    }
-    
-    // Kullanıcı adını kaydet
-    localStorage.setItem('mines_playerName', username);
-    setShowLoginForm(false);
-    setFormError('');
-    
-    // Sayfayı yeniden yükle
-    window.location.reload();
-  };
+  }, [lobbyIdToUse, navigate, userId, apiChecked]);
 
   // Oyun ve socket hooks
   const {
@@ -226,63 +161,47 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
     sendGameResult,
     sendMessage,
     reconnect
-  } = useGameSocket(lobbyIdToUse, userId, demoMode);
+  } = useGameSocket(lobbyIdToUse, userId, false);
 
   // Bağlantı hatası durumunda bildirim göster
   useEffect(() => {
-    if (socketError && !demoMode) {
-      setNotification({
-        show: true,
-        message: `Bağlantı hatası: ${socketError}. Demo moda geçiliyor.`,
-        severity: 'error'
-      });
-      
-      // Socket hatası varsa demo moda geç
-      setDemoMode(true);
-      setDemoModeState(true);
+    // Bağlantı hatası olsa bile bildirim gösterme
+    if (socketError) {
+      console.log("Bağlantı hatası (gizlendi):", socketError);
     }
-  }, [socketError, demoMode]);
+  }, [socketError]);
 
   // Oyun bittiğinde çağrılacak fonksiyon
   function handleGameEnd(result) {
     console.log('Oyun sonucu:', result);
     
     // Eğer socket bağlantısı varsa, sonucu sunucuya gönder
-    if (isConnected && !demoMode) {
+    if (isConnected) {
       sendGameResult(result);
     }
-    
-    setNotification({
-      show: true,
-      message: result.status === 'won' ? 'Tebrikler, kazandınız!' : 'Oyunu kaybettiniz!',
-      severity: result.status === 'won' ? 'success' : 'error'
-    });
   }
 
-  // Hücre tıklama
+  // Hücre tıklama işleyicisi
   const handleCellClick = (row, col) => {
-    // Socket bağlantısı varsa, aksiyonu sunucuya gönder
-    if (isConnected && !demoMode) {
+    openCell(row, col);
+    
+    // Eğer socket bağlantısı varsa, hamleyi diğer oyunculara bildir
+    if (isConnected) {
       sendOpenCell(row, col);
     }
-    
-    // Yerel oyun state'ini güncelle
-    openCell(row, col);
   };
 
-  // Sağ tıklama (bayrak)
+  // Sağ tıklama (bayrak) işleyicisi
   const handleCellRightClick = (row, col) => {
-    // Socket bağlantısı varsa, aksiyonu sunucuya gönder
-    if (isConnected && !demoMode) {
-      const isFlagged = !board[row][col].isFlagged;
-      sendToggleFlag(row, col, isFlagged);
-    }
-    
-    // Yerel oyun state'ini güncelle
     toggleFlag(row, col);
+    
+    // Eğer socket bağlantısı varsa, hamleyi diğer oyunculara bildir
+    if (isConnected) {
+      sendToggleFlag(row, col);
+    }
   };
 
-  // Oyun ayarlarını değiştir
+  // Ayarları değiştir
   const handleSettingsChange = (newSettings) => {
     setSettings(newSettings);
     resetGame();
@@ -290,107 +209,34 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
 
   // Ana sayfaya dön
   const handleGoToHome = () => {
-    // Ana uygulamaya yönlendirme mesajı gönder
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: 'NAVIGATE_HOME',
-          source: 'mines-game'
-        }, '*');
-      } else {
-        window.location.href = '/home';
-      }
-    } catch (e) {
-      console.error('Ana uygulamaya yönlendirme yapılamadı:', e);
-      window.location.href = '/home';
-    }
-  };
-  
-  // Yeniden bağlan
-  const handleReconnect = async () => {
-    // API bağlantısını kontrol et
-    const isConnected = await checkApiConnection();
+    // LocalStorage'daki lobi verisini temizle
+    localStorage.removeItem('mines_lobbyId');
     
-    if (isConnected) {
-      setDemoMode(false);
-      setDemoModeState(false);
-      reconnect();
-      
-      setNotification({
-        show: true,
-        message: 'Sunucuya yeniden bağlanılıyor...',
-        severity: 'info'
-      });
+    // Ana sayfaya yönlendir
+    if (window.top !== window.self) {
+      // iframe içindeyse, parent'a mesaj gönder
+      window.parent.postMessage({
+        type: 'GAME_EXIT',
+        game: 'minesweeper'
+      }, '*');
     } else {
-      setNotification({
-        show: true,
-        message: 'Sunucu bağlantısı kurulamadı. Demo modunda devam ediliyor.',
-        severity: 'warning'
-      });
+      // Değilse doğrudan ana sayfaya git
+      window.location.href = '/';
     }
   };
-  
-  // Demo modu değiştir
-  const handleToggleDemoMode = () => {
-    const newDemoMode = !demoMode;
-    setDemoMode(newDemoMode);
-    setDemoModeState(newDemoMode);
-    
-    setNotification({
-      show: true,
-      message: newDemoMode 
-        ? 'Demo modu etkinleştirildi. Çoklu oyuncu özellikleri devre dışı.' 
-        : 'Demo modu devre dışı bırakıldı. Sunucuya bağlanılıyor...',
-      severity: 'info'
-    });
-    
-    // Sayfayı yenile
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
+
+  // Sunucuya yeniden bağlan
+  const handleReconnect = async () => {
+    // Sessizce yeniden bağlanmayı dene, bildirim gösterme
+    if (reconnect && reconnect()) {
+      console.log('Yeniden bağlantı denemesi başlatıldı');
+    }
   };
   
   // Bildirimi kapat
   const handleCloseNotification = () => {
     setNotification({ ...notification, show: false });
   };
-
-  // Kullanıcı adı formunu göster
-  if (showLoginForm) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 4, minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Typography variant="h5" component="h1" gutterBottom align="center">
-            Mayın Tarlası Oyuncusu
-          </Typography>
-          
-          <form onSubmit={handleUsernameSubmit}>
-            <TextField
-              fullWidth
-              label="Kullanıcı Adınız"
-              variant="outlined"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              error={!!formError}
-              helperText={formError}
-              sx={{ mb: 3 }}
-              autoFocus
-            />
-            
-            <Button 
-              type="submit" 
-              variant="contained" 
-              color="primary" 
-              fullWidth
-              size="large"
-            >
-              Oyuna Başla
-            </Button>
-          </form>
-        </Paper>
-      </Container>
-    );
-  }
 
   // Yüklenme durumu
   if (loading) {
@@ -401,9 +247,6 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
           <Typography variant="h5" component="h1">
             Oyun Yükleniyor...
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {demoMode ? 'Demo mod hazırlanıyor...' : 'Sunucuya bağlanılıyor, lütfen bekleyin...'}
-          </Typography>
         </Box>
       </Container>
     );
@@ -412,46 +255,15 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
   return (
     <Container maxWidth="lg" sx={{ py: 4, minHeight: '100vh' }}>
       {/* Hata mesajı */}
+      {/* Hata mesajlarını gösterme
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
+      */}
       
-      {/* Demo mod bildirimi */}
-      {demoMode && (
-        <Alert 
-          severity="info" 
-          sx={{ mb: 3 }}
-          action={
-            <Button color="inherit" size="small" onClick={handleToggleDemoMode}>
-              Gerçek Moda Geç
-            </Button>
-          }
-        >
-          Demo modunda oynuyorsunuz. Çoklu oyuncu özellikleri devre dışı.
-        </Alert>
-      )}
-      
-      {/* Bağlantı durumu */}
-      {!isConnected && !demoMode && (
-        <Alert 
-          severity="warning" 
-          sx={{ mb: 3 }}
-          action={
-            <Stack direction="row" spacing={1}>
-              <Button color="inherit" size="small" onClick={handleReconnect}>
-                Yeniden Bağlan
-              </Button>
-              <Button color="inherit" size="small" onClick={handleToggleDemoMode}>
-                Demo Moda Geç
-              </Button>
-            </Stack>
-          }
-        >
-          Sunucuya bağlantı kurulamadı. Yerel modda oynuyorsunuz.
-        </Alert>
-      )}
+      {/* Bağlantı durumu - tamamen kaldırıldı */}
       
       {/* Lobi bilgileri */}
       {lobbyData && (
@@ -462,7 +274,7 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
                 Lobi: {lobbyData.name || lobbyIdToUse}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Oyuncu: {username} {isConnected && !demoMode ? '(Çevrimiçi)' : '(Çevrimdışı)'}
+                Oyuncu: {username}
               </Typography>
             </Box>
             <Button 
@@ -495,15 +307,10 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
         onSettingsChange={handleSettingsChange}
         players={players}
         currentPlayerId={userId}
-        isMultiplayer={isConnected && players.length > 1 && !demoMode}
+        isMultiplayer={isConnected && players.length > 1}
       />
       
-      {/* Socket bağlantı hatası */}
-      {socketError && !demoMode && (
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          {socketError}
-        </Alert>
-      )}
+      {/* Socket bağlantı hatası - tamamen kaldırıldı */}
       
       {/* Bildirimler */}
       <Snackbar
@@ -517,7 +324,6 @@ const GamePage = ({ lobbyId: propLobbyId, forceDemoMode = false }) => {
           severity={notification.severity} 
           sx={{ width: '100%' }}
           elevation={6}
-          variant="filled"
         >
           {notification.message}
         </Alert>

@@ -7,12 +7,11 @@ import GamePage from './pages/GamePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // API ve yardımcı fonksiyonlar
-import { checkApiConnection, isDemoMode } from './utils/api';
+import { checkApiConnection } from './utils/api';
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -23,15 +22,10 @@ function App() {
         const connected = await checkApiConnection();
         setIsConnected(connected);
         
-        // Demo modu kontrolü
-        const isDemoEnabled = isDemoMode();
-        setDemoMode(isDemoEnabled);
-        
-        console.log("API Bağlantı durumu:", connected, "Demo mod:", isDemoEnabled);
+        console.log("API Bağlantı durumu:", connected);
       } catch (error) {
         console.error('API bağlantı hatası:', error);
         setIsConnected(false);
-        setDemoMode(true); // Hata durumunda demo modu etkinleştir
       } finally {
         setIsLoading(false);
       }
@@ -47,7 +41,6 @@ function App() {
     // LocalStorage'a lobi bilgisini kaydet
     if (lobbyId) {
       localStorage.setItem('mines_lobbyId', lobbyId);
-      localStorage.setItem('game-center-demo-mode', 'true'); // Demo modu varsayılan olarak etkinleştir
     }
   }, [location.search]);
 
@@ -74,8 +67,8 @@ function App() {
     );
   }
 
-  // API bağlantı hatasında demo modda devam et
-  if (!isConnected && !demoMode) {
+  // API bağlantı hatasında bile oyunu başlat
+  if (!isConnected) {
     return (
       <Container maxWidth="md" sx={{ 
         py: 4, 
@@ -91,10 +84,10 @@ function App() {
           API Bağlantı Hatası
         </Typography>
         <Typography variant="body1" sx={{ mb: 4, textAlign: 'center' }}>
-          Sunucuya bağlanılamadı. Demo modunda devam edilecek.
+          Sunucuya bağlanılamadı. Oyun çevrimdışı modda devam edecek.
         </Typography>
         {lobbyId ? (
-          <GamePage lobbyId={lobbyId} forceDemoMode={true} />
+          <GamePage lobbyId={lobbyId} />
         ) : (
           <NotFoundPage />
         )}
@@ -104,7 +97,7 @@ function App() {
 
   return (
     <Routes>
-      <Route path="*" element={lobbyId ? <GamePage lobbyId={lobbyId} forceDemoMode={demoMode} /> : <NotFoundPage />} />
+      <Route path="*" element={lobbyId ? <GamePage lobbyId={lobbyId} /> : <NotFoundPage />} />
     </Routes>
   );
 }
